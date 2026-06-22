@@ -1,0 +1,40 @@
+{
+  "name": "gametech-whatsapp-bot",
+  "version": "2.0.0",
+  "description": "GAMETECH WhatsApp Bot by 404 Error",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "nodemon index.js",
+    "web": "node web.js"
+  },
+  "dependencies": {
+    "@whiskeysockets/baileys": "^6.7.9",
+    "axios": "^1.6.0",
+    "chalk": "^4.1.2",
+    "cheerio": "^1.0.0",
+    "express": "^4.18.2",
+    "ffmpeg-static": "^5.2.0",
+    "fluent-ffmpeg": "^2.1.2",
+    "fs-extra": "^11.2.0",
+    "node-cache": "^5.1.2",
+    "node-cron": "^3.0.3",
+    "p-limit": "^3.1.0",
+    "pino": "^8.18.0",
+    "qrcode": "^1.5.3",
+    "qrcode-terminal": "^0.12.0",
+    "sharp": "^0.33.2",
+    "socket.io": "^4.7.4",
+    "ytdl-core": "^4.11.5",
+    "yt-search": "^2.10.4",
+    "node-fetch": "^2.7.0",
+    "jimp": "^0.22.10",
+    "@ffmpeg/ffmpeg": "^0.12.10"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.3"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

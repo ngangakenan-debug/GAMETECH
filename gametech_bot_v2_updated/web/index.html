@@ -1,0 +1,888 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GAMETECH BOT — Multi-Session Panel</title>
+<script src="/socket.io/socket.io.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Rajdhani:wght@300;400;600;700&display=swap');
+
+  :root {
+    --green: #00ff88;
+    --green2: #00cc6a;
+    --dark: #080f0a;
+    --card: #0d1a10;
+    --card2: #0a1a0d;
+    --border: #1a3320;
+    --text: #c8ffd8;
+    --muted: #4a7a5a;
+    --red: #ff4444;
+    --orange: #ffaa44;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--dark);
+    color: var(--text);
+    font-family: 'Rajdhani', sans-serif;
+    min-height: 100vh;
+  }
+
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(0,255,136,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,255,136,0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .container {
+    position: relative;
+    z-index: 1;
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 24px 20px;
+  }
+
+  /* ── Header ── */
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding-bottom: 24px;
+    border-bottom: 1px solid var(--border);
+    flex-wrap: wrap;
+    gap: 16px;
+  }
+
+  .logo {
+    font-family: 'Orbitron', monospace;
+    font-size: clamp(1.2rem, 3vw, 1.8rem);
+    font-weight: 900;
+    color: var(--green);
+    text-shadow: 0 0 25px rgba(0,255,136,0.4);
+    animation: pulse-glow 3s ease-in-out infinite;
+  }
+
+  @keyframes pulse-glow {
+    0%, 100% { text-shadow: 0 0 25px rgba(0,255,136,0.4); }
+    50%       { text-shadow: 0 0 50px rgba(0,255,136,0.7), 0 0 80px rgba(0,255,136,0.3); }
+  }
+
+  .header-right {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+
+  .stat-badge {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(0,255,136,0.07);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 7px 14px;
+    font-family: 'Orbitron', monospace;
+    font-size: 0.72rem;
+    color: var(--green);
+    letter-spacing: 0.08em;
+  }
+
+  .stat-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--green);
+    box-shadow: 0 0 8px var(--green);
+    animation: blink 2s ease-in-out infinite;
+  }
+
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:.4} }
+
+  #uptime-badge {
+    background: rgba(0,0,0,0.3);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 7px 14px;
+    font-family: 'Orbitron', monospace;
+    font-size: 0.65rem;
+    color: var(--muted);
+    letter-spacing: 0.08em;
+  }
+
+  /* ── Add Button ── */
+  .add-btn {
+    background: linear-gradient(135deg, var(--green), var(--green2));
+    color: #000;
+    border: none;
+    border-radius: 10px;
+    padding: 11px 22px;
+    font-family: 'Orbitron', monospace;
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    cursor: pointer;
+    transition: all 0.3s;
+    white-space: nowrap;
+  }
+
+  .add-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(0,255,136,0.35);
+  }
+
+  .add-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+  /* ── Section heading ── */
+  .section-head {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin: 28px 0 16px;
+  }
+
+  .section-title {
+    font-family: 'Orbitron', monospace;
+    font-size: 0.75rem;
+    color: var(--green);
+    letter-spacing: 0.18em;
+  }
+
+  .section-line { flex: 1; height: 1px; background: var(--border); }
+
+  /* ── Session grid ── */
+  #sessions-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 18px;
+  }
+
+  /* ── Session card ── */
+  .session-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 22px;
+    position: relative;
+    overflow: hidden;
+    transition: border-color 0.3s, box-shadow 0.3s;
+    animation: card-in 0.3s ease;
+  }
+
+  @keyframes card-in {
+    from { opacity: 0; transform: translateY(12px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  .session-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, var(--green), transparent);
+    opacity: 0;
+    transition: opacity 0.3s;
+  }
+
+  .session-card:hover { border-color: rgba(0,255,136,0.25); }
+  .session-card:hover::before { opacity: 1; }
+
+  .session-card.status-open   { border-color: rgba(0,255,136,0.3); }
+  .session-card.status-qr     { border-color: rgba(255,170,68,0.3); }
+  .session-card.status-close,
+  .session-card.status-stopped { border-color: rgba(255,68,68,0.2); }
+
+  /* Card header row */
+  .card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 16px;
+  }
+
+  .card-id-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .status-indicator {
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  .status-open     .status-indicator { background: var(--green); box-shadow: 0 0 8px var(--green); animation: blink 2s ease-in-out infinite; }
+  .status-qr       .status-indicator { background: var(--orange); box-shadow: 0 0 8px var(--orange); animation: blink 1s ease-in-out infinite; }
+  .status-connecting .status-indicator { background: var(--muted); animation: blink 1s ease-in-out infinite; }
+  .status-close    .status-indicator,
+  .status-stopped  .status-indicator { background: var(--red); }
+
+  .card-id {
+    font-family: 'Orbitron', monospace;
+    font-size: 0.78rem;
+    color: var(--green);
+    font-weight: 700;
+    letter-spacing: 0.1em;
+  }
+
+  .status-label {
+    font-size: 0.7rem;
+    color: var(--muted);
+    letter-spacing: 0.1em;
+    font-family: 'Orbitron', monospace;
+    text-transform: uppercase;
+  }
+
+  .remove-btn {
+    background: transparent;
+    border: 1px solid rgba(255,68,68,0.3);
+    color: #ff8888;
+    border-radius: 7px;
+    padding: 5px 10px;
+    font-size: 0.72rem;
+    cursor: pointer;
+    font-family: 'Rajdhani', sans-serif;
+    font-weight: 600;
+    transition: all 0.2s;
+    letter-spacing: 0.05em;
+  }
+
+  .remove-btn:hover {
+    background: rgba(255,68,68,0.12);
+    border-color: rgba(255,68,68,0.6);
+    color: var(--red);
+  }
+
+  /* Connected body */
+  .connected-body {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 0;
+  }
+
+  .connected-icon { font-size: 2.4rem; }
+
+  .connected-name {
+    font-family: 'Orbitron', monospace;
+    font-size: 1rem;
+    color: var(--green);
+    text-align: center;
+    word-break: break-all;
+  }
+
+  .connected-num {
+    font-size: 0.8rem;
+    color: var(--muted);
+    text-align: center;
+  }
+
+  .hint-pill {
+    background: rgba(0,255,136,0.07);
+    border: 1px solid rgba(0,255,136,0.2);
+    border-radius: 20px;
+    padding: 5px 14px;
+    font-size: 0.78rem;
+    color: #8ab09a;
+    text-align: center;
+  }
+
+  /* QR body */
+  .qr-body {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 14px;
+  }
+
+  .qr-frame {
+    width: 200px; height: 200px;
+    border: 2px solid var(--border);
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255,255,255,0.02);
+    overflow: hidden;
+    position: relative;
+  }
+
+  .qr-frame img {
+    width: 184px; height: 184px;
+    border-radius: 8px;
+    background: white;
+    padding: 5px;
+  }
+
+  .qr-spinner {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .spinner {
+    width: 36px; height: 36px;
+    border: 3px solid var(--border);
+    border-top-color: var(--green);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+  }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .qr-hint {
+    font-size: 0.78rem;
+    color: var(--muted);
+    text-align: center;
+    line-height: 1.5;
+  }
+
+  /* Pairing section */
+  .pair-section {
+    width: 100%;
+    margin-top: 4px;
+  }
+
+  .pair-section input {
+    width: 100%;
+    background: rgba(0,255,136,0.04);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 14px;
+    color: var(--text);
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 1rem;
+    font-weight: 600;
+    outline: none;
+    transition: border-color 0.3s;
+    margin-bottom: 8px;
+  }
+
+  .pair-section input:focus { border-color: rgba(0,255,136,0.5); }
+  .pair-section input::placeholder { color: var(--muted); font-weight: 400; }
+
+  .pair-btn {
+    width: 100%;
+    background: rgba(0,255,136,0.1);
+    border: 1px solid rgba(0,255,136,0.3);
+    color: var(--green);
+    border-radius: 8px;
+    padding: 9px;
+    font-family: 'Orbitron', monospace;
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .pair-btn:hover { background: rgba(0,255,136,0.18); }
+
+  .pair-result {
+    margin-top: 10px;
+    background: rgba(0,255,136,0.08);
+    border: 1px solid rgba(0,255,136,0.3);
+    border-radius: 8px;
+    padding: 12px;
+    text-align: center;
+    display: none;
+  }
+
+  .pair-code {
+    font-family: 'Orbitron', monospace;
+    font-size: 1.4rem;
+    color: var(--green);
+    letter-spacing: 0.25em;
+    text-shadow: 0 0 15px rgba(0,255,136,0.4);
+  }
+
+  .pair-code-hint { font-size: 0.75rem; color: var(--muted); margin-top: 5px; }
+
+  /* Disconnected body */
+  .disc-body {
+    text-align: center;
+    padding: 10px 0;
+  }
+
+  .disc-body .disc-icon { font-size: 2rem; margin-bottom: 8px; }
+  .disc-body .disc-text { font-size: 0.85rem; color: var(--muted); margin-bottom: 12px; }
+
+  .retry-btn {
+    background: rgba(255,170,68,0.1);
+    border: 1px solid rgba(255,170,68,0.3);
+    color: var(--orange);
+    border-radius: 8px;
+    padding: 7px 16px;
+    font-size: 0.75rem;
+    cursor: pointer;
+    font-family: 'Orbitron', monospace;
+    letter-spacing: 0.08em;
+    transition: all 0.2s;
+  }
+
+  .retry-btn:hover { background: rgba(255,170,68,0.2); }
+
+  /* Empty state */
+  .empty-state {
+    grid-column: 1/-1;
+    text-align: center;
+    padding: 60px 20px;
+    border: 1px dashed var(--border);
+    border-radius: 16px;
+  }
+
+  .empty-state .es-icon { font-size: 3rem; margin-bottom: 16px; }
+  .empty-state .es-title {
+    font-family: 'Orbitron', monospace;
+    font-size: 0.9rem;
+    color: var(--green);
+    margin-bottom: 8px;
+    letter-spacing: 0.1em;
+  }
+  .empty-state .es-sub { font-size: 0.9rem; color: var(--muted); }
+
+  /* ── Info strip ── */
+  .info-strip {
+    display: flex;
+    gap: 12px;
+    margin-top: 28px;
+    flex-wrap: wrap;
+  }
+
+  .info-box {
+    flex: 1;
+    min-width: 140px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px 18px;
+  }
+
+  .info-box .ib-label {
+    font-family: 'Orbitron', monospace;
+    font-size: 0.65rem;
+    color: var(--muted);
+    letter-spacing: 0.12em;
+    margin-bottom: 5px;
+  }
+
+  .info-box .ib-val {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--green);
+    font-family: 'Orbitron', monospace;
+  }
+
+  /* ── Footer ── */
+  footer {
+    text-align: center;
+    margin-top: 36px;
+    padding: 18px 0;
+    border-top: 1px solid var(--border);
+    color: var(--muted);
+    font-size: 0.78rem;
+    letter-spacing: 0.1em;
+  }
+
+  .toast {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px 20px;
+    font-size: 0.9rem;
+    color: var(--text);
+    box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+    z-index: 1000;
+    opacity: 0;
+    transform: translateY(10px);
+    transition: all 0.3s;
+    pointer-events: none;
+  }
+
+  .toast.show { opacity: 1; transform: translateY(0); }
+
+  @media (max-width: 500px) {
+    header { flex-direction: column; align-items: flex-start; }
+    .header-right { width: 100%; justify-content: space-between; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <!-- Header -->
+  <header>
+    <div>
+      <div class="logo">🧩 GAMETECH BOT</div>
+      <div style="font-family:'Orbitron',monospace;font-size:0.6rem;color:var(--muted);letter-spacing:0.3em;margin-top:4px">MULTI-SESSION CONTROL PANEL v2.0</div>
+    </div>
+    <div class="header-right">
+      <div class="stat-badge">
+        <div class="stat-dot"></div>
+        <span id="connected-count">0</span>&nbsp;CONNECTED
+      </div>
+      <div id="uptime-badge">⏱ --</div>
+      <button class="add-btn" id="add-btn" onclick="addSession()">＋ ADD ACCOUNT</button>
+    </div>
+  </header>
+
+  <!-- Sessions section -->
+  <div class="section-head">
+    <div class="section-title">📱 SESSIONS</div>
+    <div class="section-line"></div>
+    <div style="font-family:'Orbitron',monospace;font-size:0.65rem;color:var(--muted)" id="total-count">0 TOTAL</div>
+  </div>
+
+  <div id="sessions-grid">
+    <div class="empty-state">
+      <div class="es-icon">📲</div>
+      <div class="es-title">NO SESSIONS YET</div>
+      <div class="es-sub">Click <strong>+ ADD ACCOUNT</strong> to connect your first WhatsApp number</div>
+    </div>
+  </div>
+
+  <!-- Info strip -->
+  <div class="info-strip">
+    <div class="info-box">
+      <div class="ib-label">VERSION</div>
+      <div class="ib-val">v2.0.0</div>
+    </div>
+    <div class="info-box">
+      <div class="ib-label">UPTIME</div>
+      <div class="ib-val" id="uptime-val">--</div>
+    </div>
+    <div class="info-box">
+      <div class="ib-label">OWNER</div>
+      <div class="ib-val" style="font-size:0.78rem">Kenan Nganga</div>
+    </div>
+    <div class="info-box">
+      <div class="ib-label">PREFIX</div>
+      <div class="ib-val">.</div>
+    </div>
+    <div class="info-box">
+      <div class="ib-label">COMMANDS</div>
+      <div class="ib-val">150+</div>
+    </div>
+    <div class="info-box">
+      <div class="ib-label">JOIN GROUP</div>
+      <div class="ib-val">
+        <a href="https://chat.whatsapp.com/IpV8R0vT0i1CHSTqwVgJJS?s=cl&p=a&mlu=1" target="_blank"
+           style="color:var(--green);text-decoration:none;font-size:0.72rem;letter-spacing:0.05em">CLICK ↗</a>
+      </div>
+    </div>
+  </div>
+
+  <footer>
+    🧩 GAMETECH BOT v2.0 &nbsp;|&nbsp; Multi-Session Engine &nbsp;|&nbsp;
+    Creator: 404 Error GAMETECH &nbsp;|&nbsp; Owner: Kenan Nganga (+254706478789)
+  </footer>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<script>
+const socket = io();
+
+// session state map: id → { status, user, qr }
+const sessions = {};
+
+// ── Toast helper ──────────────────────────────
+let toastTimer;
+function toast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('show'), 3000);
+}
+
+// ── Update header counters ────────────────────
+function updateCounters() {
+  const total = Object.keys(sessions).length;
+  const connected = Object.values(sessions).filter(s => s.status === 'open').length;
+  document.getElementById('connected-count').textContent = connected;
+  document.getElementById('total-count').textContent = `${total} TOTAL`;
+}
+
+// ── Render all sessions ───────────────────────
+function renderAll() {
+  const ids = Object.keys(sessions);
+  const grid = document.getElementById('sessions-grid');
+
+  if (ids.length === 0) {
+    grid.innerHTML = `
+      <div class="empty-state">
+        <div class="es-icon">📲</div>
+        <div class="es-title">NO SESSIONS YET</div>
+        <div class="es-sub">Click <strong>+ ADD ACCOUNT</strong> to connect your first WhatsApp number</div>
+      </div>`;
+    return;
+  }
+
+  // Only re-render cards that don't exist yet or have changed status
+  ids.forEach(id => renderCard(id));
+
+  // Remove cards for deleted sessions
+  grid.querySelectorAll('.session-card').forEach(card => {
+    if (!sessions[card.dataset.id]) card.remove();
+  });
+
+  updateCounters();
+}
+
+// ── Render / update a single card ────────────
+function renderCard(id) {
+  const s = sessions[id];
+  const grid = document.getElementById('sessions-grid');
+
+  // Remove empty state if present
+  const empty = grid.querySelector('.empty-state');
+  if (empty) empty.remove();
+
+  let card = grid.querySelector(`.session-card[data-id="${id}"]`);
+  const isNew = !card;
+
+  if (isNew) {
+    card = document.createElement('div');
+    card.className = 'session-card';
+    card.dataset.id = id;
+    grid.appendChild(card);
+  }
+
+  // Update status class
+  card.className = `session-card status-${s.status}`;
+  card.dataset.id = id;
+
+  const statusLabels = {
+    open: '🟢 ONLINE',
+    qr: '🟡 SCAN QR',
+    connecting: '⏳ CONNECTING',
+    close: '🔴 OFFLINE',
+    stopped: '⛔ STOPPED',
+  };
+
+  let body = '';
+
+  if (s.status === 'open' && s.user) {
+    const num = (s.user.id || '').split(':')[0].split('@')[0];
+    body = `
+      <div class="connected-body">
+        <div class="connected-icon">✅</div>
+        <div class="connected-name">${escHtml(s.user.name || 'Connected')}</div>
+        <div class="connected-num">+${escHtml(num)}</div>
+        <div class="hint-pill">Send <strong>.menu</strong> on WhatsApp</div>
+      </div>`;
+  } else if (s.status === 'qr') {
+    body = `
+      <div class="qr-body">
+        <div class="qr-frame" id="qr-frame-${id}">
+          <div class="qr-spinner">
+            <div class="spinner"></div>
+            <div style="font-size:0.75rem;color:var(--muted)">Generating QR...</div>
+          </div>
+        </div>
+        <div class="qr-hint">WhatsApp → ⋮ Menu → Linked Devices<br>→ Link a Device → Scan QR</div>
+        <div class="pair-section">
+          <input type="tel" id="pair-phone-${id}" placeholder="Or enter phone: 254706..." />
+          <button class="pair-btn" onclick="requestPair('${id}')">📞 GET PAIRING CODE</button>
+          <div class="pair-result" id="pair-result-${id}">
+            <div class="pair-code" id="pair-code-${id}">----</div>
+            <div class="pair-code-hint">WhatsApp → Linked Devices → Link with phone number</div>
+          </div>
+        </div>
+      </div>`;
+  } else if (s.status === 'connecting') {
+    body = `
+      <div style="text-align:center;padding:20px 0">
+        <div class="spinner" style="margin:0 auto 12px"></div>
+        <div style="font-size:0.85rem;color:var(--muted)">Connecting to WhatsApp...</div>
+      </div>`;
+  } else {
+    body = `
+      <div class="disc-body">
+        <div class="disc-icon">📵</div>
+        <div class="disc-text">Session disconnected or logged out.<br>Reconnecting automatically...</div>
+        <button class="retry-btn" onclick="retrySession('${id}')">🔄 RETRY NOW</button>
+      </div>`;
+  }
+
+  card.innerHTML = `
+    <div class="card-header">
+      <div class="card-id-row">
+        <div class="status-indicator"></div>
+        <div class="card-id">${escHtml(id)}</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <div class="status-label">${statusLabels[s.status] || s.status}</div>
+        <button class="remove-btn" onclick="removeSession('${id}')">✕ REMOVE</button>
+      </div>
+    </div>
+    ${body}`;
+
+  // If QR image was already received, inject it
+  if (s.qr && s.status === 'qr') {
+    const frame = card.querySelector(`#qr-frame-${id}`);
+    if (frame) {
+      frame.innerHTML = `<img src="${s.qr}" alt="QR Code" />`;
+    }
+  }
+
+  updateCounters();
+}
+
+// ── Socket events ─────────────────────────────
+
+socket.on('sessions:list', (list) => {
+  // Rebuild sessions map
+  Object.keys(sessions).forEach(k => delete sessions[k]);
+  list.forEach(s => { sessions[s.id] = s; });
+  renderAll();
+});
+
+socket.on('session:update', (s) => {
+  if (!sessions[s.id]) sessions[s.id] = {};
+  Object.assign(sessions[s.id], s);
+  // Keep QR if not cleared
+  if (s.status !== 'qr') sessions[s.id].qr = null;
+  renderCard(s.id);
+  updateCounters();
+});
+
+socket.on('session:qr', ({ id, qr }) => {
+  if (!sessions[id]) sessions[id] = { id, status: 'qr' };
+  sessions[id].qr = qr;
+  sessions[id].status = 'qr';
+  // Inject into existing card frame if it's there
+  const frame = document.querySelector(`#qr-frame-${id}`);
+  if (frame) {
+    frame.innerHTML = `<img src="${qr}" alt="QR Code" />`;
+  } else {
+    renderCard(id);
+  }
+});
+
+socket.on('session:removed', ({ id }) => {
+  delete sessions[id];
+  const card = document.querySelector(`.session-card[data-id="${id}"]`);
+  if (card) card.remove();
+  if (Object.keys(sessions).length === 0) renderAll();
+  updateCounters();
+  toast(`Session "${id}" removed.`);
+});
+
+socket.on('status:tick', (d) => {
+  document.getElementById('uptime-val').textContent  = d.uptime || '--';
+  document.getElementById('uptime-badge').textContent = '⏱ ' + (d.uptime || '--');
+  document.getElementById('connected-count').textContent = d.connected || 0;
+});
+
+// ── Add new session ───────────────────────────
+async function addSession() {
+  const btn = document.getElementById('add-btn');
+  btn.disabled = true;
+  btn.textContent = 'ADDING...';
+  toast('⏳ Starting new session...');
+  try {
+    const r = await fetch('/sessions', { method: 'POST', headers: { 'Content-Type': 'application/json' } });
+    const d = await r.json();
+    if (d.error) {
+      toast('❌ ' + d.error);
+    } else {
+      sessions[d.id] = { id: d.id, status: d.status, user: null, qr: null };
+      renderCard(d.id);
+      toast(`✅ Session "${d.id}" started — scan QR to connect!`);
+    }
+  } catch {
+    toast('❌ Network error. Try again.');
+  }
+  btn.disabled = false;
+  btn.textContent = '＋ ADD ACCOUNT';
+}
+
+// ── Remove session ────────────────────────────
+async function removeSession(id) {
+  if (!confirm(`Remove session "${id}"? This will disconnect and delete its WhatsApp login.`)) return;
+  try {
+    const r = await fetch(`/sessions/${encodeURIComponent(id)}`, { method: 'DELETE' });
+    const d = await r.json();
+    if (d.error) toast('❌ ' + d.error);
+  } catch {
+    toast('❌ Failed to remove session.');
+  }
+}
+
+// ── Retry disconnected session ────────────────
+async function retrySession(id) {
+  toast(`🔄 Retrying session "${id}"...`);
+  try {
+    await fetch('/sessions', { method: 'POST', body: JSON.stringify({ id }), headers: { 'Content-Type': 'application/json' } });
+  } catch {}
+}
+
+// ── Request pairing code ──────────────────────
+async function requestPair(id) {
+  const phoneEl  = document.getElementById(`pair-phone-${id}`);
+  const resultEl = document.getElementById(`pair-result-${id}`);
+  const codeEl   = document.getElementById(`pair-code-${id}`);
+  const phone    = phoneEl.value.replace(/[^0-9]/g, '');
+
+  if (!phone || phone.length < 10) {
+    toast('❌ Enter a valid phone number with country code');
+    return;
+  }
+
+  toast(`⏳ Requesting pairing code for ${phone}...`);
+  try {
+    const r = await fetch(`/sessions/${encodeURIComponent(id)}/pair`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ phone }),
+    });
+    const d = await r.json();
+    if (d.error) {
+      toast('❌ ' + d.error);
+    } else {
+      codeEl.textContent = d.code;
+      resultEl.style.display = 'block';
+      toast(`✅ Pairing code: ${d.code}`);
+    }
+  } catch {
+    toast('❌ Network error requesting pairing code.');
+  }
+}
+
+// ── Utils ─────────────────────────────────────
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// ── Poll status on load ───────────────────────
+async function pollStatus() {
+  try {
+    const r = await fetch('/status');
+    const d = await r.json();
+    document.getElementById('uptime-val').textContent  = d.uptime || '--';
+    document.getElementById('uptime-badge').textContent = '⏱ ' + (d.uptime || '--');
+    document.getElementById('connected-count').textContent = d.connected || 0;
+  } catch {}
+}
+
+setInterval(pollStatus, 5000);
+pollStatus();
+</script>
+</body>
+</html>
